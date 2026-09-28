@@ -4,7 +4,7 @@
 
 ## 1. 取得代码并创建两个环境
 
-仓库为 [leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)，当前可见性为 private。先确保本机 Git 已使用有仓库访问权限的 GitHub 账号完成认证，再执行以下命令；不要把访问令牌写入 clone URL 或项目文件。本地导出用户可直接进入导出目录，从 Python 命令继续。
+仓库为 [leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)，以下命令克隆 v0.1.0 公共代码。本地导出用户可直接进入导出目录，从 Python 命令继续。
 
 ```powershell
 git clone https://github.com/leiye314/AudioNotes.git AudioNotes
@@ -64,9 +64,9 @@ if ($LASTEXITCODE -ne 0) { throw 'MOSS source install failed' }
 & $taskMoss -m pip check
 ```
 
-## 3. 下载固定 revision 权重并生成 manifest
+## 3. 默认下载 Qwen + MOSS 固定 revision 权重并生成 manifest
 
-固定值统一在 [runtime_versions.json](../profiles/runtime_versions.json)：Qwen、MOSS、Whisper 都使用完整提交号。MOSS 需要执行随权重固定的 remote code；先阅读上游代码和许可证。下面下载所有该 revision 的文件，不下载个人资料；需要数 GB 空间和网络。
+固定值统一在 [runtime_versions.json](../profiles/runtime_versions.json)：Qwen、MOSS、Whisper 都使用完整提交号。MOSS 需要执行随权重固定的 remote code；先阅读上游代码和许可证。默认只下载 Qwen + MOSS 各自固定 revision 的全部文件；需要数 GB 空间和网络。Whisper 权重仅在需要局部 fallback 时按下方可选步骤安装。
 
 ```powershell
 @'
@@ -76,12 +76,11 @@ from huggingface_hub import HfApi, snapshot_download
 root = Path.cwd()
 pins = json.loads((root/'profiles/runtime_versions.json').read_text())
 api = HfApi()
-for repo, pin in pins['models'].items():
+for repo in ['Qwen/Qwen3-ASR-1.7B-hf', 'OpenMOSS-Team/MOSS-Transcribe-Diarize']:
+    pin = pins['models'][repo]
     rev = pin['revision']
     assert api.model_info(repo, revision=rev).sha == rev
-    whisper = repo == 'Systran/faster-whisper-large-v3'
-    cache = root/'models/hf-cache/models--Systran--faster-whisper-large-v3'
-    dest = cache/'snapshots'/rev if whisper else root/'models'/repo.split('/')[-1]
+    dest = root/'models'/repo.split('/')[-1]
     manifest = dest/'download_manifest.json'
     if manifest.exists():
         saved = json.loads(manifest.read_text(encoding='utf-8'))
@@ -96,18 +95,54 @@ for repo, pin in pins['models'].items():
             digest = hashlib.file_digest(f, 'sha256').hexdigest()
         rows.append(dict(file=relative.as_posix(), bytes=path.stat().st_size, sha256=digest))
     manifest.write_text(json.dumps(dict(repo=repo, revision=rev, files=rows), indent=2), encoding='utf-8')
-    if whisper:
-        ref = cache/'refs/main'
-        ref.parent.mkdir(parents=True, exist_ok=True)
-        if ref.exists():
-            assert ref.read_text().strip() == rev, 'Ref differs; review instead of replacing it'
-        ref.write_text(rev + '\n', encoding='utf-8')
     print(repo, rev, len(rows))
 '@ | & $taskAsr -B -
 if ($LASTEXITCODE -ne 0) { throw 'Pinned model download/manifest creation failed' }
 ```
 
-`download_manifest.json` 必须来自真实文件，不能仅填写 revision 冒充已下载。它记录本地 SHA-256；该清单不是来自第三方独立签名的文件认证。Whisper 的 `refs/main` 在这里明确指向固定 revision，不追随上游 main。
+`download_manifest.json` 必须来自真实文件，不能仅填写 revision 冒充已下载。它记录本地 SHA-256；该清单不是来自第三方独立签名的文件认证。
+
+## 3a. 可选：安装 Whisper fallback 权重
+
+仅在中英课堂局部英语漏句等需要 Whisper 候选时执行；默认 Qwen/MOSS 流程可跳过。沿用同一固定 revision 和 ASR 环境，不改变 Whisper 支持代码。`refs/main` 明确指向固定 revision，不追随上游 main。
+
+```powershell
+@'
+import hashlib, json
+from pathlib import Path
+from huggingface_hub import HfApi, snapshot_download
+root = Path.cwd()
+pins = json.loads((root/'profiles/runtime_versions.json').read_text())
+api = HfApi()
+for repo in ['Systran/faster-whisper-large-v3']:
+    pin = pins['models'][repo]
+    rev = pin['revision']
+    assert api.model_info(repo, revision=rev).sha == rev
+    cache = root/'models/hf-cache/models--Systran--faster-whisper-large-v3'
+    dest = cache/'snapshots'/rev
+    manifest = dest/'download_manifest.json'
+    if manifest.exists():
+        saved = json.loads(manifest.read_text(encoding='utf-8'))
+        assert saved['revision'] == rev and saved['repo'] == repo
+    snapshot_download(repo_id=repo, revision=rev, local_dir=dest)
+    rows = []
+    for path in sorted(dest.rglob('*')):
+        relative = path.relative_to(dest)
+        if not path.is_file() or '.cache' in relative.parts or path == manifest:
+            continue
+        with path.open('rb') as f:
+            digest = hashlib.file_digest(f, 'sha256').hexdigest()
+        rows.append(dict(file=relative.as_posix(), bytes=path.stat().st_size, sha256=digest))
+    manifest.write_text(json.dumps(dict(repo=repo, revision=rev, files=rows), indent=2), encoding='utf-8')
+    ref = cache/'refs/main'
+    ref.parent.mkdir(parents=True, exist_ok=True)
+    if ref.exists():
+        assert ref.read_text().strip() == rev, 'Ref differs; review instead of replacing it'
+    ref.write_text(rev + '\n', encoding='utf-8')
+    print(repo, rev, len(rows))
+'@ | & $taskAsr -B -
+if ($LASTEXITCODE -ne 0) { throw 'Optional Whisper download/manifest creation failed' }
+```
 
 ## 4. 配置 FFmpeg 并验证 CUDA
 
@@ -140,7 +175,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Synthetic tests failed' }
 
 ## 5. Qwen 与 MOSS 各一次短音频 smoke
 
-下面将完整的公共生产代码复制到临时项目，用 Windows 自带语音合成产生两句测试语音，串行运行真实登记、计划、GPU 生成和来源后处理。只硬链接只读使用的本地模型文件，不复制个人录音。临时项目退出时删除，包含其测试音频与派生结果；简短通过结果打印到控制台。这不是准确率评估。不要用生产运行器的 `--smoke` 代替裁短音频：该旧选项不会保证完整录音只处理数秒。
+下面将完整的公共生产代码复制到临时项目，用 Windows 自带语音合成产生两句测试语音，串行运行真实登记、计划、GPU 生成和来源后处理。只硬链接只读使用的本地模型文件，不复制个人录音。临时项目退出时删除，包含其测试音频与派生结果；简短通过结果打印到控制台。这不是准确率评估。测试使用预先生成且验证不超过 20 秒的短音频。
 
 先在项目根目录执行 `New-Item -ItemType Directory -Force work | Out-Null`，把下列代码保存为 `work/setup_smoke.py`，然后运行后面的命令：
 

@@ -1,4 +1,4 @@
-"""Full recording plans; reuse only the exact formal Round 1 chunk allowlists."""
+"""Full recording plans using the registered production policy."""
 import json, subprocess, wave
 from pathlib import Path
 from project_paths import ffmpeg_path
@@ -28,21 +28,7 @@ def plan(job, engine):
     if not wav.exists():
         subprocess.run([str(ffmpeg_path(ROOT)),'-nostdin','-loglevel','error','-n','-i',str(source),'-map','0:a:0','-ar','16000','-ac','1','-c:a','pcm_s16le',str(wav)],check=True)
     with wave.open(str(wav),'rb') as w: duration=w.getnframes()/w.getframerate()
-    reuse=[]
-    fp={'qwen':'f380c7c511d337ec','moss':'f718b688fbb46b27'}[engine]
-    prior=ROOT/'outputs'/job/'round1'/engine/fp
-    if (prior/'run.json').exists():
-        manifest=json.loads((prior/'run.json').read_text(encoding='utf-8'))
-        samples=json.loads((ROOT/'eval/round1/samples.json').read_text(encoding='utf-8'))
-        allowed={s['sample_id']:s for s in samples if s['job_id']==job}
-        for sample in manifest['samples']:
-            assert sample['sample_id'] in allowed
-            assert allowed[sample['sample_id']]['source_sha256']==row['source_sha256']
-            for cid in sample['chunks']:
-                p=prior/(cid+'.json');r=json.loads(p.read_text(encoding='utf-8'))
-                assert sha(Path(r['input_path']))==r['input_sha256']
-                reuse.append({'start':r['source_start_s'],'end':r['source_end_s'],'reused_from':str(p),'reused_sha256':sha(p),'path':r['input_path'],'sha256':r['input_sha256']})
-    reuse.sort(key=lambda r:r['start']);seconds=policy['chunk_seconds']
+    seconds=policy['chunk_seconds']
     chunks=[];cursor=0
     with wave.open(str(wav),'rb') as w:
         rate=w.getframerate()
@@ -55,11 +41,8 @@ def plan(job, engine):
                     with wave.open(str(p),'wb') as out:
                         out.setparams(w.getparams());out.writeframes(w.readframes(round(stop*rate)-round(cursor*rate)))
                 chunks.append({'start':cursor,'end':stop,'path':str(p),'sha256':sha(p)});cursor=stop
-        for old in reuse:
-            assert old['start']>=cursor
-            gap(old['start']);chunks.append(old);cursor=old['end']
         gap(duration)
-    result={**row,'sample_id':job+'_full','local_path':str(wav),'local_sha256':sha(wav),'source_start_s':0,'source_end_s':duration,'duration_s':duration,'chunks':chunks,'reused_chunks':len(reuse),'time_basis':'original_recording_seconds_no_silence_removal','human_verified':False}
+    result={**row,'sample_id':job+'_full','local_path':str(wav),'local_sha256':sha(wav),'source_start_s':0,'source_end_s':duration,'duration_s':duration,'chunks':chunks,'reused_chunks':0,'time_basis':'original_recording_seconds_no_silence_removal','human_verified':False}
     write_json(work/'plan.json',result)
     return result
 

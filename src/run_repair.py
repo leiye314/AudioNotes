@@ -33,7 +33,7 @@ class Monitor:
     def finish(self):self.stop.set();self.thread.join()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--model',required=True,choices=['qwen','whisper','moss']);p.add_argument('--profile',choices=['logic_lecture','research_meeting']);p.add_argument('--smoke',action='store_true');p.add_argument('--chunk-seconds',type=int);p.add_argument('--job',required=True);p.add_argument('--plan',type=Path);args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--model',required=True,choices=['qwen','whisper','moss']);p.add_argument('--job',required=True);p.add_argument('--plan',type=Path);args=p.parse_args()
     # OS file lock automatically releases on crash; never run two GPU models together.
     (ROOT/'work/tmp').mkdir(parents=True,exist_ok=True)
     import msvcrt
@@ -45,13 +45,11 @@ def main():
     assert torch.cuda.is_available(),'CUDA unavailable; CPU fallback is prohibited'
     x=torch.randn((512,512),device='cuda'); y=x@x;torch.cuda.synchronize();assert torch.isfinite(y).all();del x,y
     dll=Path(torch.__file__).parent/'lib';dll_handle=os.add_dll_directory(str(dll));os.environ['PATH']=str(dll)+os.pathsep+os.environ['PATH']
-    profile=args.profile or ('research_meeting' if args.model=='moss' else 'logic_lecture')
     if args.plan:
         from prepare_local_fallback import validate_plan
         planned=validate_plan(args.plan,args.job,args.model)
     else:planned=plan(args.job,args.model)
     rows=planned if isinstance(planned,list) else [planned]
-    if args.smoke:rows=rows[:1]
     model_id={'qwen':'Qwen/Qwen3-ASR-1.7B-hf','moss':'OpenMOSS-Team/MOSS-Transcribe-Diarize','whisper':'Systran/faster-whisper-large-v3'}[args.model]
     if args.model=='whisper':
         cache=whisper_cache(ROOT)
@@ -60,8 +58,8 @@ def main():
         model_path=ROOT/'models'/model_id.split('/')[-1]
         revision=json.loads((model_path/'download_manifest.json').read_text())['revision']
     seconds=30 if args.plan else (10 if args.model=='qwen' else 30)
-    config={'model':model_id,'revision':revision,'device':'cuda:0','dtype':'float16' if args.model=='whisper' else 'bfloat16','attention':'CTranslate2' if args.model=='whisper' else 'sdpa','chunk_seconds':seconds,'batch_size':1,'max_new_tokens':1024 if args.model=='qwen' else 4096,'do_sample':False,'language':'zh' if args.model=='whisper' else 'auto','hotwords':None,'vad':False,'beam_size':5 if args.model=='whisper' else 1,'smoke':args.smoke,'script_sha256':sha(Path(__file__))}
-    effective_config(config,rows,args.model,args.chunk_seconds)
+    config={'model':model_id,'revision':revision,'device':'cuda:0','dtype':'float16' if args.model=='whisper' else 'bfloat16','attention':'CTranslate2' if args.model=='whisper' else 'sdpa','chunk_seconds':seconds,'batch_size':1,'max_new_tokens':1024 if args.model=='qwen' else 4096,'do_sample':False,'language':'zh' if args.model=='whisper' else 'auto','hotwords':None,'vad':False,'beam_size':5 if args.model=='whisper' else 1,'script_sha256':sha(Path(__file__))}
+    effective_config(config,rows,args.model)
     packages={d.metadata['Name']:d.version for d in importlib.metadata.distributions()}
     config['packages']=packages
     config['source_sha256']=rows[0]['source_sha256']

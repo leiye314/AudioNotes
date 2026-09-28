@@ -2,10 +2,12 @@
 import contextlib
 import io
 import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+import wave
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +18,7 @@ import common
 import export_public
 import local_defaults
 import project_paths
+import prepare_full
 import reading_publish as publication
 
 
@@ -43,6 +46,48 @@ class BaselineTests(unittest.TestCase):
         self.assertNotIn('max_new_tokens', result)
         with self.assertRaises(ValueError):
             local_defaults.effective_config({}, rows, 'qwen', 10)
+
+    def test_full_plan_policy_coverage_and_cached_integrity(self):
+        for engine, profile, seconds in [('qwen', 'course_lecture', 30),
+                                          ('moss', 'research_meeting', 120)]:
+            with self.subTest(engine=engine):
+                job = 'synthetic_' + engine
+                work = self.root/'work'/job/'full'
+                work.mkdir(parents=True)
+                source = work/'source_16k_mono.wav'
+                with wave.open(str(source), 'wb') as out:
+                    out.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
+                    out.writeframes(b'\x00\x00' * 16000 * 125)
+                common.write_json(self.root/'outputs/index.json', {'items': [dict(
+                    job_id=job, source_path=str(source), source_sha256=common.sha(source),
+                    profile=profile)]})
+                # No historical experiment files or model dependencies are present.
+                with patch.object(prepare_full, 'ROOT', self.root), patch.object(
+                        prepare_full.subprocess, 'run', return_value=subprocess.CompletedProcess(
+                            [], 0, stderr='Audio: pcm_s16le, 16000 Hz, mono')) as probe:
+                    plan = prepare_full.plan(job, engine)
+                    self.assertEqual([(c['start'], c['end']) for c in plan['chunks']],
+                                     [(n, min(n + seconds, 125)) for n in range(0, 125, seconds)])
+                    self.assertEqual(plan['reused_chunks'], 0)
+                    self.assertTrue(all('reused_from' not in c for c in plan['chunks']))
+                    self.assertEqual(prepare_full.plan(job, engine), plan)
+                    probe.assert_called_once()
+                    Path(plan['chunks'][0]['path']).write_bytes(b'changed chunk')
+                    with self.assertRaises(AssertionError):
+                        prepare_full.plan(job, engine)
+
+    def test_runner_cli_rejects_obsolete_options_before_inference(self):
+        for runner in ['run_full.py', 'run_stereo_full.py', 'run_repair.py']:
+            for option, value in [('--profile', 'logic_lecture'), ('--smoke', None),
+                                  ('--chunk-seconds', '30')]:
+                with self.subTest(runner=runner, option=option):
+                    command = [sys.executable, '-B', str(ROOT/'src'/runner),
+                               '--job', 'synthetic', '--model', 'qwen', option]
+                    if value is not None:
+                        command.append(value)
+                    result = subprocess.run(command, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn('unrecognized arguments: ' + option, result.stderr)
 
     def test_relative_paths_and_environment_override(self):
         common.write_json(self.root/'profiles/local_settings.json', {'ffmpeg':'custom/ffmpeg.exe'})

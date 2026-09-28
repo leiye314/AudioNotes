@@ -33,7 +33,7 @@ class Monitor:
     def finish(self):self.stop.set();self.thread.join()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--model',required=True,choices=['qwen','whisper','moss']);p.add_argument('--profile',choices=['logic_lecture','research_meeting']);p.add_argument('--smoke',action='store_true');p.add_argument('--chunk-seconds',type=int);p.add_argument('--job',required=True);args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--model',required=True,choices=['qwen','whisper','moss']);p.add_argument('--job',required=True);args=p.parse_args()
     # OS file lock automatically releases on crash; never run two GPU models together.
     (ROOT/'work/tmp').mkdir(parents=True,exist_ok=True)
     import msvcrt
@@ -45,9 +45,7 @@ def main():
     assert torch.cuda.is_available(),'CUDA unavailable; CPU fallback is prohibited'
     x=torch.randn((512,512),device='cuda'); y=x@x;torch.cuda.synchronize();assert torch.isfinite(y).all();del x,y
     dll=Path(torch.__file__).parent/'lib';dll_handle=os.add_dll_directory(str(dll));os.environ['PATH']=str(dll)+os.pathsep+os.environ['PATH']
-    profile=args.profile or ('research_meeting' if args.model=='moss' else 'logic_lecture')
     rows=[plan(args.job,args.model)]
-    if args.smoke:rows=rows[:1]
     model_id={'qwen':'Qwen/Qwen3-ASR-1.7B-hf','moss':'OpenMOSS-Team/MOSS-Transcribe-Diarize','whisper':'Systran/faster-whisper-large-v3'}[args.model]
     if args.model=='whisper':
         cache=whisper_cache(ROOT)
@@ -55,14 +53,14 @@ def main():
     else:
         model_path=ROOT/'models'/model_id.split('/')[-1]
         revision=json.loads((model_path/'download_manifest.json').read_text())['revision']
-    seconds=args.chunk_seconds or {'qwen':30,'whisper':120,'moss':120}[args.model]
-    config={'model':model_id,'revision':revision,'device':'cuda:0','dtype':'float16' if args.model=='whisper' else 'bfloat16','attention':'CTranslate2' if args.model=='whisper' else 'sdpa','chunk_seconds':seconds,'batch_size':1,'max_new_tokens':1024 if args.model=='qwen' else 4096,'do_sample':False,'language':'zh' if args.model=='whisper' else 'auto','hotwords':None,'vad':False,'beam_size':5 if args.model=='whisper' else 1,'smoke':args.smoke,'script_sha256':sha(Path(__file__))}
-    effective_config(config,rows,args.model,args.chunk_seconds)
+    seconds={'qwen':30,'whisper':120,'moss':120}[args.model]
+    config={'model':model_id,'revision':revision,'device':'cuda:0','dtype':'float16' if args.model=='whisper' else 'bfloat16','attention':'CTranslate2' if args.model=='whisper' else 'sdpa','chunk_seconds':seconds,'batch_size':1,'max_new_tokens':1024 if args.model=='qwen' else 4096,'do_sample':False,'language':'zh' if args.model=='whisper' else 'auto','hotwords':None,'vad':False,'beam_size':5 if args.model=='whisper' else 1,'script_sha256':sha(Path(__file__))}
+    effective_config(config,rows,args.model)
     packages={d.metadata['Name']:d.version for d in importlib.metadata.distributions()}
     config['packages']=packages
     config['source_sha256']=rows[0]['source_sha256']
     config['plan_sha256']=sha(ROOT/'work'/args.job/'full/plan.json')
-    config['workflow']='full_recording_reuse_formal_round1_v1'
+    config['workflow']='full_recording_v1.1'
     if args.model=='moss':
         from moss_transcribe_diarize.inference_utils import DEFAULT_PROMPT
         config['prompt']=DEFAULT_PROMPT

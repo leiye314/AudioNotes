@@ -1,6 +1,6 @@
 # AudioNotes v0.1.0
 
-**公共软件版本：v0.1.0（首次发布，当前仓库为 private）。内部 workflow/default policy：v1.1；阅读状态标识继续使用 `reading-v1`。这些版本号分别描述发布包与处理政策。**
+**公共软件版本：v0.1.0（首次公开发布）。内部 workflow/default policy：v1.1；阅读状态标识继续使用 `reading-v1`。这些版本号分别描述发布包与处理政策。**
 
 面向 Windows/CUDA 的本地录音处理与阅读发布工具。课堂使用 Qwen，会议使用 MOSS；机械工具负责发现、登记、识别衔接、保全和发布。内容整理需要能读取项目文件的 AI agent（当前推荐 Codex），或由人工完整阅读转写后完成。机械脚本本身不会自动生成高质量课堂笔记或会议纪要，也不会自行调用订阅模型。
 
@@ -8,7 +8,7 @@
 
 ## 开始
 
-仓库：[leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)。当前为 private，需使用有访问权限的 GitHub 账号完成 Git 认证。
+仓库：[leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)。可直接克隆公共代码。
 
 ```powershell
 git clone https://github.com/leiye314/AudioNotes.git

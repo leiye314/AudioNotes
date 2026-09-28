@@ -12,6 +12,13 @@
 - 短音频来自 Windows 本地语音合成，未使用个人录音；临时项目、测试音频和派生音频均已清理。权重只从已有固定 revision 文件加载，原文件哈希已核对。
 - 公共文件使用显式 allowlist、机器路径/常见 secret 扫描、已知个人上下文扫描、Markdown 本地链接检查与导出清单 SHA-256 校验。源代码和 SETUP 代码块通过语法检查。
 
+## Pre-public 最小修订验证（2026-09-28）
+
+- README/SETUP 改为正式 Public v0.1.0 说明；默认权重下载仅 Qwen + MOSS，Whisper 为可选 fallback，固定 revision 不变。
+- 移除新 mono 计划对历史实验 fingerprint/allowlist 的依赖，统一历史 workflow/质量字段命名；三个 runner 移除无公共用途的 `--profile`、`--smoke`、`--chunk-seconds`，保留推理主体和已有计划的哈希校验。
+- 合成测试 12/12 通过，覆盖政策分块、缓存完整性和旧 CLI 参数拒绝。公共文件 secret/私人上下文/绝对路径扫描、本地 Markdown 链接、Python 与 SETUP 代码块语法检查通过；离线模拟验证默认/可选下载范围、manifest 哈希与固定 revision。
+- 本轮未重新运行 GPU 推理；上方安装与短音频结果是修订前的历史验证。源码变化会产生新的运行指纹，既有完整 delivery 的优先复用不变。
+
 ## 发布边界与风险
 
 1. **原生 mono 的自动 EOS 修复仍有旧边界。** `prepare_repair.py` 自动路径依赖 `channel/channel_rows` 结构；正常 mono 识别及完整结果复用已验证，异常自动修复未在本次扩展。明确局部 `--plan` 候选不等于已经自动替换。
