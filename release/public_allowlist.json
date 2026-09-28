@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "source": "src/audio_workflow.py",
+      "target": "src/audio_workflow.py"
+    },
+    {
+      "source": "src/common.py",
+      "target": "src/common.py"
+    },
+    {
+      "source": "src/local_defaults.py",
+      "target": "src/local_defaults.py"
+    },
+    {
+      "source": "src/postprocess_full.py",
+      "target": "src/postprocess_full.py"
+    },
+    {
+      "source": "src/prepare_full.py",
+      "target": "src/prepare_full.py"
+    },
+    {
+      "source": "src/prepare_stereo.py",
+      "target": "src/prepare_stereo.py"
+    },
+    {
+      "source": "src/prepare_repair.py",
+      "target": "src/prepare_repair.py"
+    },
+    {
+      "source": "src/prepare_local_fallback.py",
+      "target": "src/prepare_local_fallback.py"
+    },
+    {
+      "source": "src/project_paths.py",
+      "target": "src/project_paths.py"
+    },
+    {
+      "source": "src/read_source.py",
+      "target": "src/read_source.py"
+    },
+    {
+      "source": "src/reading_publish.py",
+      "target": "src/reading_publish.py"
+    },
+    {
+      "source": "src/run_full.py",
+      "target": "src/run_full.py"
+    },
+    {
+      "source": "src/run_stereo_full.py",
+      "target": "src/run_stereo_full.py"
+    },
+    {
+      "source": "src/run_repair.py",
+      "target": "src/run_repair.py"
+    },
+    {
+      "source": "src/select_repair.py",
+      "target": "src/select_repair.py"
+    },
+    {
+      "source": ".gitignore",
+      "target": ".gitignore"
+    },
+    {
+      "source": "Run-ReadingAudioNotes.ps1",
+      "target": "Run-ReadingAudioNotes.ps1"
+    },
+    {
+      "source": "profiles/local_settings.example.json",
+      "target": "profiles/local_settings.example.json"
+    },
+    {
+      "source": "profiles/runtime_versions.json",
+      "target": "profiles/runtime_versions.json"
+    },
+    {
+      "source": "requirements/asr.lock.txt",
+      "target": "requirements/asr.lock.txt"
+    },
+    {
+      "source": "requirements/moss.lock.txt",
+      "target": "requirements/moss.lock.txt"
+    },
+    {
+      "source": "docs/DEPENDENCIES.md",
+      "target": "docs/DEPENDENCIES.md"
+    },
+    {
+      "source": "tests/test_baseline.py",
+      "target": "tests/test_baseline.py"
+    },
+    {
+      "source": "release/export_public.py",
+      "target": "release/export_public.py"
+    },
+    {
+      "source": "README.md",
+      "target": "README.md"
+    },
+    {
+      "source": "AGENTS.md",
+      "target": "AGENTS.md"
+    },
+    {
+      "source": "docs/AUDIO_WORKFLOW.md",
+      "target": "docs/AUDIO_WORKFLOW.md"
+    },
+    {
+      "source": "profiles/local_defaults_v1.1.json",
+      "target": "profiles/local_defaults_v1.1.json"
+    },
+    {
+      "source": "release/public_allowlist.json",
+      "target": "release/public_allowlist.json"
+    },
+    {
+      "source": "LICENSE",
+      "target": "LICENSE"
+    },
+    {
+      "source": "docs/SETUP.md",
+      "target": "docs/SETUP.md"
+    },
+    {
+      "source": "docs/RELEASE_CHECK.md",
+      "target": "docs/RELEASE_CHECK.md"
+    }
+  ]
+}

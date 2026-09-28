@@ -1,0 +1,35 @@
+# Private data and evidence: never stage the personal workspace wholesale.
+/recordings/
+/阅读成品/
+/outputs/
+/work/
+/eval/
+/reports/
+/models/
+/envs/
+/tools/
+/dist/
+# Personal context; public export uses reviewed replacement documents.
+/INDEX.md
+/README.before_full.md
+/AudioNotes_*.md
+/docs/RELEASE_CLEANUP.md
+/profiles/*.json
+!/profiles/local_defaults_v1.1.json
+!/profiles/local_settings.example.json
+!/profiles/runtime_versions.json
+/profiles/FALLBACK.md
+# Local secrets, caches and unfinished downloads.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.log
+*.tmp
+*.download
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/

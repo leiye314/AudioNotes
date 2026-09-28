@@ -1,0 +1,241 @@
+# AudioNotes v0.1.0 安装与短音频检查
+
+适用 Windows x64、PowerShell、NVIDIA CUDA GPU；Python 基线为 3.12.14。软件发布号是 v0.1.0，内部 workflow/default policy 保持 v1.1。模型一次只加载一个。以下步骤针对全新目录，不应在个人稳定环境重复安装。
+
+## 1. 取得代码并创建两个环境
+
+仓库为 [leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)，当前可见性为 private。先确保本机 Git 已使用有仓库访问权限的 GitHub 账号完成认证，再执行以下命令；不要把访问令牌写入 clone URL 或项目文件。本地导出用户可直接进入导出目录，从 Python 命令继续。
+
+```powershell
+git clone https://github.com/leiye314/AudioNotes.git AudioNotes
+Set-Location AudioNotes
+py -3.12 --version
+py -3.12 -m venv envs/asr
+py -3.12 -m venv envs/moss
+$taskAsr = Join-Path $PWD 'envs/asr/Scripts/python.exe'
+$taskMoss = Join-Path $PWD 'envs/moss/Scripts/python.exe'
+$env:PYTHONUTF8 = '1'
+```
+
+使用官方 Python 3.12 x64；`py` 不存在时用该 Python 的实际可执行文件替换。不要启用 `--system-site-packages`。检查驱动和 CUDA wheel，先单独安装 CUDA 包，再从 PyPI 安装其余固定依赖，避免多个索引的优先级混用：
+
+```powershell
+nvidia-smi
+& $taskAsr -m pip install --no-deps torch==2.11.0+cu128 torchaudio==2.11.0+cu128 --index-url https://download.pytorch.org/whl/cu128
+if ($LASTEXITCODE -ne 0) { throw 'ASR CUDA wheel install failed' }
+& $taskMoss -m pip install --no-deps torch==2.11.0+cu128 torchaudio==2.11.0+cu128 --index-url https://download.pytorch.org/whl/cu128
+if ($LASTEXITCODE -ne 0) { throw 'MOSS CUDA wheel install failed' }
+& $taskAsr -m pip install --index-url https://pypi.org/simple -r requirements/asr.lock.txt
+if ($LASTEXITCODE -ne 0) { throw 'ASR dependency install failed' }
+& $taskMoss -m pip install --index-url https://pypi.org/simple -r requirements/moss.lock.txt
+if ($LASTEXITCODE -ne 0) { throw 'MOSS dependency install failed' }
+```
+
+下载失败时检查网络或包源可用性；不要放宽版本、替换 CPU Torch 或复制别人的虚拟环境。安装命令会下载公开依赖，不上传录音。
+
+## 2. 安装固定提交的 MOSS 源码
+
+以下仅下载公开源码压缩包，不创建额外 Git 仓库。源码保留上游许可证，安装到 MOSS 环境，运行时不依赖手工修改 `PYTHONPATH`。
+
+```powershell
+@'
+import json, urllib.request, zipfile
+from pathlib import Path, PurePosixPath
+root = Path.cwd()
+rev = json.loads((root/'profiles/runtime_versions.json').read_text())['moss_source_revision']
+folder = root/'tools/moss-source'
+folder.mkdir(parents=True, exist_ok=True)
+archive = folder/(rev + '.zip')
+urllib.request.urlretrieve('https://codeload.github.com/OpenMOSS/MOSS-Transcribe-Diarize/zip/' + rev, archive)
+with zipfile.ZipFile(archive) as z:
+    for item in z.infolist():
+        parts = PurePosixPath(item.filename)
+        assert not parts.is_absolute() and '..' not in parts.parts
+        assert (folder/item.filename).resolve().is_relative_to(folder.resolve())
+    z.extractall(folder)
+print(folder/('MOSS-Transcribe-Diarize-' + rev))
+'@ | & $taskAsr -B -
+if ($LASTEXITCODE -ne 0) { throw 'MOSS source download failed' }
+$taskPins = Get-Content profiles/runtime_versions.json -Raw | ConvertFrom-Json
+$taskMossSource = Join-Path $PWD ('tools/moss-source/MOSS-Transcribe-Diarize-' + $taskPins.moss_source_revision)
+& $taskMoss -m pip install --no-deps $taskMossSource
+if ($LASTEXITCODE -ne 0) { throw 'MOSS source install failed' }
+& $taskAsr -m pip check
+& $taskMoss -m pip check
+```
+
+## 3. 下载固定 revision 权重并生成 manifest
+
+固定值统一在 [runtime_versions.json](../profiles/runtime_versions.json)：Qwen、MOSS、Whisper 都使用完整提交号。MOSS 需要执行随权重固定的 remote code；先阅读上游代码和许可证。下面下载所有该 revision 的文件，不下载个人资料；需要数 GB 空间和网络。
+
+```powershell
+@'
+import hashlib, json
+from pathlib import Path
+from huggingface_hub import HfApi, snapshot_download
+root = Path.cwd()
+pins = json.loads((root/'profiles/runtime_versions.json').read_text())
+api = HfApi()
+for repo, pin in pins['models'].items():
+    rev = pin['revision']
+    assert api.model_info(repo, revision=rev).sha == rev
+    whisper = repo == 'Systran/faster-whisper-large-v3'
+    cache = root/'models/hf-cache/models--Systran--faster-whisper-large-v3'
+    dest = cache/'snapshots'/rev if whisper else root/'models'/repo.split('/')[-1]
+    manifest = dest/'download_manifest.json'
+    if manifest.exists():
+        saved = json.loads(manifest.read_text(encoding='utf-8'))
+        assert saved['revision'] == rev and saved['repo'] == repo
+    snapshot_download(repo_id=repo, revision=rev, local_dir=dest)
+    rows = []
+    for path in sorted(dest.rglob('*')):
+        relative = path.relative_to(dest)
+        if not path.is_file() or '.cache' in relative.parts or path == manifest:
+            continue
+        with path.open('rb') as f:
+            digest = hashlib.file_digest(f, 'sha256').hexdigest()
+        rows.append(dict(file=relative.as_posix(), bytes=path.stat().st_size, sha256=digest))
+    manifest.write_text(json.dumps(dict(repo=repo, revision=rev, files=rows), indent=2), encoding='utf-8')
+    if whisper:
+        ref = cache/'refs/main'
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        if ref.exists():
+            assert ref.read_text().strip() == rev, 'Ref differs; review instead of replacing it'
+        ref.write_text(rev + '\n', encoding='utf-8')
+    print(repo, rev, len(rows))
+'@ | & $taskAsr -B -
+if ($LASTEXITCODE -ne 0) { throw 'Pinned model download/manifest creation failed' }
+```
+
+`download_manifest.json` 必须来自真实文件，不能仅填写 revision 冒充已下载。它记录本地 SHA-256；该清单不是来自第三方独立签名的文件认证。Whisper 的 `refs/main` 在这里明确指向固定 revision，不追随上游 main。
+
+## 4. 配置 FFmpeg 并验证 CUDA
+
+ASR 锁中的 `imageio-ffmpeg` wheel 自带 Windows FFmpeg，可复制到项目默认位置。该可执行文件受其自身许可证约束，不随项目公共包分发。
+
+```powershell
+@'
+import shutil, subprocess
+from pathlib import Path
+import imageio_ffmpeg
+dest = Path('tools/ffmpeg.exe')
+dest.parent.mkdir(parents=True, exist_ok=True)
+if not dest.exists():
+    shutil.copy2(imageio_ffmpeg.get_ffmpeg_exe(), dest)
+subprocess.run([str(dest.resolve()), '-version'], check=True)
+'@ | & $taskAsr -B -
+if ($LASTEXITCODE -ne 0) { throw 'FFmpeg verification failed' }
+if (-not (Test-Path profiles/local_settings.json)) {
+    Copy-Item profiles/local_settings.example.json profiles/local_settings.json
+}
+foreach ($taskPython in @($taskAsr, $taskMoss)) {
+    & $taskPython -B -c "import torch; assert torch.cuda.is_available(); assert torch.version.cuda == '12.8'; x=torch.randn(512,512,device='cuda'); y=x@x; torch.cuda.synchronize(); assert torch.isfinite(y).all(); print(torch.__version__,torch.cuda.get_device_name(0))"
+    if ($LASTEXITCODE -ne 0) { throw 'CUDA verification failed' }
+}
+& $taskAsr -B -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw 'Synthetic tests failed' }
+```
+
+相对路径均以项目根解析。需要外置缓存时，只修改未跟踪的 `profiles/local_settings.json` 中 `whisper_cache` 或 `ffmpeg`；不要把个人绝对路径写进公共版本文件。
+
+## 5. Qwen 与 MOSS 各一次短音频 smoke
+
+下面将完整的公共生产代码复制到临时项目，用 Windows 自带语音合成产生两句测试语音，串行运行真实登记、计划、GPU 生成和来源后处理。只硬链接只读使用的本地模型文件，不复制个人录音。临时项目退出时删除，包含其测试音频与派生结果；简短通过结果打印到控制台。这不是准确率评估。不要用生产运行器的 `--smoke` 代替裁短音频：该旧选项不会保证完整录音只处理数秒。
+
+先在项目根目录执行 `New-Item -ItemType Directory -Force work | Out-Null`，把下列代码保存为 `work/setup_smoke.py`，然后运行后面的命令：
+
+```python
+import argparse, hashlib, json, os, shutil, subprocess, sys, tempfile, wave
+from pathlib import Path
+
+p = argparse.ArgumentParser()
+p.add_argument('--models', type=Path)
+p.add_argument('--asr-python', type=Path)
+p.add_argument('--moss-python', type=Path)
+p.add_argument('--ffmpeg', type=Path)
+p.add_argument('--scratch-parent', type=Path)
+a = p.parse_args()
+root = Path.cwd().resolve()
+models = (a.models or root/'models').resolve()
+asr = (a.asr_python or root/'envs/asr/Scripts/python.exe').resolve()
+moss = (a.moss_python or root/'envs/moss/Scripts/python.exe').resolve()
+ffmpeg = (a.ffmpeg or root/'tools/ffmpeg.exe').resolve()
+parent = (a.scratch_parent or root/'work').resolve()
+parent.mkdir(parents=True, exist_ok=True)
+env = {**os.environ, 'PYTHONUTF8':'1', 'PYTHONDONTWRITEBYTECODE':'1',
+       'HF_HUB_OFFLINE':'1', 'TRANSFORMERS_OFFLINE':'1'}
+summary = []
+with tempfile.TemporaryDirectory(prefix='audionotes-smoke-', dir=parent) as temporary:
+    scratch = Path(temporary).resolve()
+    assert scratch.parent == parent and not scratch.is_symlink()
+    shutil.copytree(root/'src', scratch/'src', ignore=shutil.ignore_patterns('__pycache__'))
+    (scratch/'profiles').mkdir()
+    for name in ['runtime_versions.json', 'local_defaults_v1.1.json']:
+        shutil.copy2(root/'profiles'/name, scratch/'profiles'/name)
+    (scratch/'tools').mkdir()
+    shutil.copy2(ffmpeg, scratch/'tools/ffmpeg.exe')
+    for name in ['Qwen3-ASR-1.7B-hf', 'MOSS-Transcribe-Diarize']:
+        source = models/name
+        assert (source/'download_manifest.json').is_file()
+        for file in source.rglob('*'):
+            relative = file.relative_to(source)
+            if not file.is_file() or '.cache' in relative.parts:
+                continue
+            dest = scratch/'models'/name/relative
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            # Same-volume NTFS required. Hardlink deletion does not delete the original.
+            os.link(file, dest)
+    synth_code = '''$OutputFile=$env:AUDIONOTES_SMOKE_WAV
+$Words=$env:AUDIONOTES_SMOKE_WORDS
+Add-Type -AssemblyName System.Speech
+$speaker = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000,[System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,[System.Speech.AudioFormat.AudioChannel]::Mono)
+try { $speaker.SetOutputToWaveFile($OutputFile,$format); $speaker.Speak($Words) }
+finally { $speaker.Dispose() }
+'''
+    for engine, python, profile, words in [
+        ('qwen', asr, 'course_lecture', 'This is a short local audio test. One two three.'),
+        ('moss', moss, 'research_meeting', 'This is a short meeting test. The task is complete.')]:
+        audio = scratch/'recordings/inbox'/(engine+'.wav')
+        audio.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(['powershell.exe','-NoProfile','-Command',synth_code],
+                       env={**env,'AUDIONOTES_SMOKE_WAV':str(audio),'AUDIONOTES_SMOKE_WORDS':words},check=True)
+        with wave.open(str(audio)) as w:
+            duration = w.getnframes()/w.getframerate()
+            assert 0 < duration <= 20 and w.getnchannels() == 1
+        command = [str(python),'-B',str(scratch/'src/audio_workflow.py'),'register',str(audio),
+                   '--profile',profile,'--collection','SyntheticSmoke','--date','2000-01-01']
+        registered = json.loads(subprocess.check_output(command,cwd=scratch,env=env,text=True,encoding='utf-8'))
+        job = registered['job']
+        subprocess.run([str(python),'-B',str(scratch/'src/run_full.py'),'--job',job,'--model',engine],
+                       cwd=scratch,env=env,check=True)
+        subprocess.run([str(python),'-B',str(scratch/'src/postprocess_full.py'),'--job',job],
+                       cwd=scratch,env=env,check=True)
+        runs = list((scratch/'outputs'/job/'full'/engine).glob('*/run.json'))
+        assert len(runs) == 1
+        run = json.loads(runs[0].read_text(encoding='utf-8'))
+        assert run['status'] == 'completed_candidates_unverified' and run['gpu_matmul_verified']
+        chunks = [json.loads((runs[0].parent/(cid+'.json')).read_text(encoding='utf-8'))
+                  for sample in run['samples'] for cid in sample['chunks']]
+        assert chunks and all(c['termination']=='eos' and any(s['text'].strip() for s in c['segments']) for c in chunks)
+        quality = json.loads((scratch/'outputs'/job/'delivery/quality.json').read_text(encoding='utf-8'))
+        assert quality['procedural_pass']
+        summary.append(dict(engine=engine, audio_seconds=duration, eos=True,
+                            chunks=len(chunks), procedural_pass=True, revision=run['config']['revision']))
+    assert scratch.parent == parent and not any(p.is_symlink() or p.is_junction() for p in scratch.rglob('*'))
+assert not scratch.exists()
+print(json.dumps(dict(smoke=summary, temporary_audio_removed=True), indent=2))
+```
+
+```powershell
+& $taskAsr -B work/setup_smoke.py
+if ($LASTEXITCODE -ne 0) { throw 'Smoke failed; inspect the error without relaxing model policy' }
+```
+
+硬链接要求模型目录与临时目录位于同一 NTFS 卷；可用 `--scratch-parent` 指定该卷中的可写临时目录。模型文件只用于加载，不写入；请关闭其他占用 GPU 的推理任务。脚本的临时副本使用自己的 GPU 锁，不协调另一个项目的运行器。System.Speech 需 Windows 的本地语音组件；缺失时应安装组件后重试，不拿私人会议片段代替测试材料。
+
+## 6. 开始实际工作
+
+先阅读 [工作流](AUDIO_WORKFLOW.md)，然后按 README 登记实际录音。内容整理需要能读取项目文件的 AI agent（当前推荐 Codex）或人工完整阅读全文、写笔记、维护 spec 并审查来源。脚本不会自动完成高质量内容写作；注册或 ASR 成功不等于课堂笔记/会议纪要已完成。
+
+第三方模型、MOSS 源码、FFmpeg 和依赖受各自许可证约束；Apache-2.0 只适用于本项目授权的代码与文档，不重新授权第三方组件。

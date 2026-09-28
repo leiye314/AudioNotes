@@ -1,0 +1,5 @@
+{
+  "ffmpeg": "tools/ffmpeg.exe",
+  "whisper_cache": "models/hf-cache/models--Systran--faster-whisper-large-v3",
+  "reading_index_footer": []
+}

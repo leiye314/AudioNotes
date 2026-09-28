@@ -1,0 +1,17 @@
+{
+  "python": "3.12.14",
+  "moss_source_revision": "61bc29cd4120be7b5d3b761b64cd5dff57263642",
+  "models": {
+    "OpenMOSS-Team/MOSS-Transcribe-Diarize": {
+      "revision": "704aa4a9c304e8520be88901e0d1960158ef5b15"
+    },
+    "Qwen/Qwen3-ASR-1.7B-hf": {
+      "revision": "bcd2b5b7f32b480ab5790554cfa8347f246a14f3"
+    },
+    "Systran/faster-whisper-large-v3": {
+      "revision": "edaa852ec7e145841d8ffdb056a99866b5f0a478"
+    }
+  },
+  "public_version": "0.1.0",
+  "workflow_policy_version": "1.1"
+}

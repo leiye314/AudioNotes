@@ -1,0 +1,35 @@
+{
+  "version": "1.1",
+  "evidence": "docs/AUDIO_WORKFLOW.md",
+  "scenes": {
+    "technical_class": {
+      "model": "qwen",
+      "language": "unforced",
+      "chunk_seconds": 30,
+      "stereo_policy": "separate_L_R_no_downmix",
+      "fallback": "EOS failure: Qwen 10s; disputed terminology/negation/numbers: local MOSS 30s, retain uncertainty without reference"
+    },
+    "mixed_class": {
+      "model": "qwen",
+      "language": "unforced",
+      "chunk_seconds": 30,
+      "stereo_policy": "separate_L_R_no_downmix",
+      "fallback": "EOS failure: Qwen 10s; English omission/language mismatch: local Whisper 30s, language=None and task=transcribe each block"
+    },
+    "humanities": {
+      "model": "qwen",
+      "language": "unforced",
+      "chunk_seconds": 30,
+      "stereo_policy": "separate_L_R_no_downmix",
+      "fallback": "EOS failure: Qwen 10s; names or teacher/playback overlap: local MOSS 30s plus scoped review; no automatic winner"
+    },
+    "meeting": {
+      "model": "moss",
+      "language": "unforced_default_prompt",
+      "chunk_seconds": 120,
+      "stereo_policy": "separate_L_R_no_downmix",
+      "fallback": "EOS failure: MOSS 30s; disputed cards/index/negation: local Qwen 30s; speaker identities remain chunk-local"
+    }
+  },
+  "channel_principle": "Native mono stays mono. Preserve and process independent L/R for stereo under existing policy; do not promote benchmark L or simple downmix to global production default. Reading channel selection requires source-scoped content evidence, not RMS or longer output."
+}
