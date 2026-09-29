@@ -23,17 +23,17 @@
     "profiles/runtime_versions.json": "ec02a1799c4083bcacbea486916757cc3f2c7e9aa3f0b37d46208ffd8dabe946",
     "requirements/asr.lock.txt": "28d883e902a3005edf647d87756e2b7f25ca35ceee567e2ff763887c4212fb37",
     "requirements/moss.lock.txt": "4b97b11865b73cd6a9eeaf659c09bc81cd27f9592234c66cba5302c5125ee91e",
-    "docs/DEPENDENCIES.md": "dfd8d5096e97e9eeadcdfb482ddaa9511981886b2a5d4eb6f68beea583f96cbc",
+    "docs/DEPENDENCIES.md": "8269fb8a274691bee4c86b2ad07c7724bfb380b4733811074e560f65b2c3c71c",
     "tests/test_baseline.py": "1cc65b102db917583510f214c0a103dd8f9d584a3d078c25547f3a8280643f1e",
     "release/export_public.py": "9bbaff3e46b2798cac83e4a94c011845395972fa2d7b29062def608fc22611b4",
-    "README.md": "e338707d1d17122ff1454ef3cccf9ea3d046d7e5de70705c41e0335d96e18f4b",
+    "README.md": "274efd7fd9fa434fc9eb2c2f277957f568faf66ae1a6af7d4c5e0423dbcdec1e",
     "AGENTS.md": "d43465678471f5c6f81c88942c30040de44704eef638ce760e3ac6958c286fdc",
-    "docs/AUDIO_WORKFLOW.md": "f5f1509af93e958b51c796380cd5d643c3eb4c98808801a9b17c12614786c4e8",
+    "docs/AUDIO_WORKFLOW.md": "ee366387201ba3b552fa2623ca78f18342a1bc5025a5aa5e52f78724c31005ca",
     "profiles/local_defaults_v1.1.json": "cb0d7897b0e918c2bfe3fc6ee17e5d64ed016edb07bb8ca74327c7472a46a64b",
     "release/public_allowlist.json": "680f7fde3e45bc516a400a1263ce7c250a5a0ee7d73d3ec6f05edec979f34db3",
     "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-    "docs/SETUP.md": "034e61389cf885df70d254815e162c6d7cfaa3178ebf2797e074e1d706e39eeb",
-    "docs/RELEASE_CHECK.md": "431824b3139efe8dca4b528d0e757e658c63c0de685aef5234dd6feabec2d1de"
+    "docs/SETUP.md": "ed8e277022426d3d2d62657952160763f7fd6c6de2cbaa830f29217f964a76e8",
+    "docs/RELEASE_CHECK.md": "25c08a6123029d390a4bf62fa6ea6038a126ef2bf72bf6812c5be8a76991488c"
   },
   "scope": "local public candidate; no personal evidence"
 }

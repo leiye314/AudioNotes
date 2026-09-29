@@ -1,15 +1,15 @@
-# v0.1.1 maintenance / reproducibility readiness
+# v0.1.1 发布验证记录
 
-检查日期：2026-09-29。当前代码准备发布公共软件 v0.1.1；内部 workflow/default policy 保持 v1.1，阅读状态保持 `reading-v1`。
+检查日期：2026-09-29。公共软件版本 v0.1.1；内部 workflow/default policy 保持 v1.1，阅读状态保持 `reading-v1`。
 
-仓库已为 [Public](https://github.com/leiye314/AudioNotes)，[v0.1.0 tag 与 Release](https://github.com/leiye314/AudioNotes/releases/tag/v0.1.0) 已发布，对应提交 `3195625`。本轮仅准备 v0.1.1，不创建 tag、Release 或 push。
+仓库已为 [Public](https://github.com/leiye314/AudioNotes)，[v0.1.0 tag 与 Release](https://github.com/leiye314/AudioNotes/releases/tag/v0.1.0) 已发布，对应提交 `3195625`。v0.1.1 为 maintenance release，内部政策版本不变。
 
 ## 本轮改动与实际验证
 
 - 原生 mono 的自动 EOS repair 兼容缺省 `channel` 与无 `channel_rows` 的完整计划，内部明确使用 `MONO`；Qwen 缩为 10 秒、MOSS 缩为 30 秒，保留原始失败证据。L/R 仍独立选择；没有改写 runner、模型、依赖锁或 v1.1 policy。
 - 公共合成回归 **18/18 通过**（Windows / Python 3.12.14）。覆盖 mono 两引擎、双声道相同时间范围不串选、仅右声道失败、音频切片字节与源偏移、缓存哈希、不完整候选拒绝及既有发布保护。
 - 使用合成 WAV 和合成模型输出，额外执行 Qwen/MOSS × mono/stereo 共 4 条“repair 计划 → 选择 → 来源后处理”链路，均 `procedural_pass=true`，原 full run JSON 哈希不变。此项没有调用模型，也不是 GPU repair smoke。
-- 一个轻量 GitHub Actions workflow：Windows / Python 3.12，只运行 `unittest discover -s tests -v` 与 `release/export_public.py --check`。不安装 ASR 依赖、下载模型或运行 GPU，无 matrix。托管 Actions 尚未运行；本地执行等价命令。
+- 一个轻量 GitHub Actions workflow：Windows / Python 3.12，只运行 `unittest discover -s tests -v` 与 `release/export_public.py --check`。不安装 ASR 依赖、下载模型或运行 GPU，无 matrix。提交 `4c99e51ab2eab987009d521a8a5a2e8bbd120c11` 的托管 [Synthetic checks #1](https://github.com/leiye314/AudioNotes/actions/runs/36591384512) 已成功：Windows / Python 3.12（实际 3.12.10）上 **18/18 synthetic tests 通过**，**Public export check 通过（34 文件）**。这项验证不包含 GPU/ASR 推理。
 - 显式 allowlist 共 34 文件（另附导出 manifest）；secret/绝对路径/已知个人上下文扫描、本地 Markdown 链接、Python 与文档代码块语法、CLI help、生成物忽略规则及导出 SHA-256 核验通过。CI 文件仅按明确路径加入允许类型。
 - 全新 allowlist 导出在禁用 site-packages（`-S`）的 Python 3.12.14 下通过全部 18 项测试与导出检查。相同新增用例在 v0.1.0 repair 代码上复现两个引擎的 mono `KeyError: 'channel'`，stereo 用例仍通过。
 - 个人项目仅回移两个通用 repair 文件，备份原文件后执行既有 11 + 6 + 4 项回归，全部通过；248 个代码、文档、配置与交付文件的前后哈希核对只有这两个文件变化，公共 README、CI 和 release 元数据未同步。
@@ -42,6 +42,5 @@
 3. 自动 repair 要求一个 full run 和一个 repair run；多个历史 fingerprint 需显式审查。新增 mono 支持不放宽该既有边界。
 4. 后台展示有已有硬编码：mono 的 `channel_policy` 可能触发双声道说明/空 L/R 字幕，Qwen repair 的部分 Markdown 提示仍写 30 秒。实际 mono 修复字段为 `MONO`，Qwen 计划为 10 秒；以 `plan.json`、`raw_segments.json` 和质量 JSON 为准。本轮不扩改后处理器。
 5. MOSS 上游有 `feature_extractor_class` 弃用提示；内容整理仍需 AI agent 或人工完整阅读、写作与审查。程序结构检查不是听音验收。
-6. GitHub 托管 CI 必须待未来授权推送后才能实测，本轮不以本地通过声称远端已绿。
 
-**当前结论：限定 maintenance 范围内未发现阻塞 v0.1.1 准备就绪的问题；以上验证边界随版本保留。** 项目代码与文档按 [Apache-2.0](../LICENSE) 授权；第三方组件各自授权，不重新授权。
+**发布结论：v0.1.1 maintenance 的本地验证与上述托管 CI 均通过；以上未验证范围和已知限制随版本保留。** 项目代码与文档按 [Apache-2.0](../LICENSE) 授权；第三方组件各自授权，不重新授权。

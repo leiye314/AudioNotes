@@ -1,6 +1,6 @@
 # AudioNotes v0.1.1 安装与短音频检查
 
-适用 Windows x64、PowerShell、NVIDIA CUDA GPU；Python 基线为 3.12.14。本页对应待发布软件 v0.1.1，内部 workflow/default policy 保持 v1.1。模型一次只加载一个，不提供 CPU 推理 fallback。以下步骤针对全新目录，不应在个人稳定环境重复安装。
+适用 Windows x64、PowerShell、NVIDIA CUDA GPU；Python 基线为 3.12.14。本页对应公共软件 v0.1.1，内部 workflow/default policy 保持 v1.1。模型一次只加载一个，不提供 CPU 推理 fallback。以下步骤针对全新目录，不应在个人稳定环境重复安装。
 
 ## 1. 取得代码并创建两个环境
 
@@ -13,11 +13,11 @@ git clone https://github.com/leiye314/AudioNotes.git AudioNotes
 Set-Location AudioNotes
 ```
 
-**按 release tag 精确复现**：在另一个全新目录执行下面命令。截至本次审计，已发布 tag 为 `v0.1.0`，本轮不创建 `v0.1.1` tag 或 Release。以后复现 v0.1.1 时，须先确认该 tag 已发布，再替换 `--branch` 的值；始终使用所选 tag 自带的 SETUP 和锁文件，不混用 main 的说明。
+**按 release tag 精确复现**：在另一个全新目录执行下面命令。以下固定到 `v0.1.1` tag。复现其他已发布版本时，替换 `--branch` 的值并使用独立目录；始终使用所选 tag 自带的 SETUP 和锁文件，不混用 main 的说明。
 
 ```powershell
-git clone --branch v0.1.0 --depth 1 https://github.com/leiye314/AudioNotes.git AudioNotes-v0.1.0
-Set-Location AudioNotes-v0.1.0
+git clone --branch v0.1.1 --depth 1 https://github.com/leiye314/AudioNotes.git AudioNotes-v0.1.1
+Set-Location AudioNotes-v0.1.1
 git describe --tags --exact-match
 ```
 
