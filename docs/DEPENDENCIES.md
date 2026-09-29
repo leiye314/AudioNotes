@@ -1,6 +1,6 @@
 # 固定依赖
 
-公共软件版本为 v0.1.0，内部 workflow/default policy 为 v1.1。支持 Windows x64 / NVIDIA CUDA。完整可执行安装步骤见 [SETUP](SETUP.md)。
+公共软件版本准备升为 v0.1.1（待发布），内部 workflow/default policy 保持 v1.1。支持 Windows x64 / NVIDIA CUDA。完整可执行安装步骤见 [SETUP](SETUP.md)。
 
 - Python 基线 3.12.14，两个独立虚拟环境 `envs/asr` 与 `envs/moss`。
 - CUDA Torch / torchaudio 为 `2.11.0+cu128`；Transformers 为 `5.17.0`。

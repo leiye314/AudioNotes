@@ -2,6 +2,14 @@
   "version": 1,
   "files": [
     {
+      "source": ".github/workflows/ci.yml",
+      "target": ".github/workflows/ci.yml"
+    },
+    {
+      "source": "tests/test_repair.py",
+      "target": "tests/test_repair.py"
+    },
+    {
       "source": "src/audio_workflow.py",
       "target": "src/audio_workflow.py"
     },

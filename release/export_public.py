@@ -50,7 +50,7 @@ def prepare(root, manifest=None):
         if key in folded or key == 'export_manifest.json':
             raise ValueError('Duplicate/reserved export target')
         folded.add(key)
-        if source.suffix not in {'.py', '.md', '.json', '.ps1', '.txt'} and source.name not in {'.gitignore', 'LICENSE'}:
+        if source.suffix not in {'.py', '.md', '.json', '.ps1', '.txt'} and source.name not in {'.gitignore', 'LICENSE'} and row['source'] != '.github/workflows/ci.yml':
             raise ValueError('Unexpected file type')
         data = source.read_bytes()
         if row.get('transform') == 'policy_evidence':

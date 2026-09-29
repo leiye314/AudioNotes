@@ -1,14 +1,29 @@
-# AudioNotes v0.1.0 安装与短音频检查
+# AudioNotes v0.1.1 安装与短音频检查
 
-适用 Windows x64、PowerShell、NVIDIA CUDA GPU；Python 基线为 3.12.14。软件发布号是 v0.1.0，内部 workflow/default policy 保持 v1.1。模型一次只加载一个。以下步骤针对全新目录，不应在个人稳定环境重复安装。
+适用 Windows x64、PowerShell、NVIDIA CUDA GPU；Python 基线为 3.12.14。本页对应待发布软件 v0.1.1，内部 workflow/default policy 保持 v1.1。模型一次只加载一个，不提供 CPU 推理 fallback。以下步骤针对全新目录，不应在个人稳定环境重复安装。
 
 ## 1. 取得代码并创建两个环境
 
-仓库为 [leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)，以下命令克隆 v0.1.0 公共代码。本地导出用户可直接进入导出目录，从 Python 命令继续。
+仓库为 [leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)。先安装 Git 和官方 Python 3.12 x64；在 PowerShell 中选择下面一种取代码方式。
+
+**使用最新 main**：取得持续维护的代码，内容可能晚于最近一次 Release，不保证等同于发布包。
 
 ```powershell
 git clone https://github.com/leiye314/AudioNotes.git AudioNotes
 Set-Location AudioNotes
+```
+
+**按 release tag 精确复现**：在另一个全新目录执行下面命令。截至本次审计，已发布 tag 为 `v0.1.0`，本轮不创建 `v0.1.1` tag 或 Release。以后复现 v0.1.1 时，须先确认该 tag 已发布，再替换 `--branch` 的值；始终使用所选 tag 自带的 SETUP 和锁文件，不混用 main 的说明。
+
+```powershell
+git clone --branch v0.1.0 --depth 1 https://github.com/leiye314/AudioNotes.git AudioNotes-v0.1.0
+Set-Location AudioNotes-v0.1.0
+git describe --tags --exact-match
+```
+
+下面从选定代码的项目根目录继续。本地导出用户也从这里开始。`py` 不存在或未登记 Python 时，将每处 `py -3.12` 替换为已安装 Python 3.12 x64 的实际可执行文件调用。
+
+```powershell
 py -3.12 --version
 py -3.12 -m venv envs/asr
 py -3.12 -m venv envs/moss
@@ -61,7 +76,9 @@ $taskMossSource = Join-Path $PWD ('tools/moss-source/MOSS-Transcribe-Diarize-' +
 & $taskMoss -m pip install --no-deps $taskMossSource
 if ($LASTEXITCODE -ne 0) { throw 'MOSS source install failed' }
 & $taskAsr -m pip check
+if ($LASTEXITCODE -ne 0) { throw 'ASR dependency consistency check failed' }
 & $taskMoss -m pip check
+if ($LASTEXITCODE -ne 0) { throw 'MOSS dependency consistency check failed' }
 ```
 
 ## 3. 默认下载 Qwen + MOSS 固定 revision 权重并生成 manifest
@@ -146,7 +163,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Optional Whisper download/manifest creation fa
 
 ## 4. 配置 FFmpeg 并验证 CUDA
 
-ASR 锁中的 `imageio-ffmpeg` wheel 自带 Windows FFmpeg，可复制到项目默认位置。该可执行文件受其自身许可证约束，不随项目公共包分发。
+需要支持 CUDA 12.8 wheel 的 NVIDIA 驱动，`nvidia-smi` 必须可调用；其显示的 CUDA 版本不能替代下面的 Torch 实测。Qwen/MOSS 使用 CUDA bfloat16，Whisper 使用 CUDA float16；只有 RTX 5070 Laptop GPU 有当前 smoke 证据，其他 GPU 架构和显存容量未逐一认证。ASR 锁中的 `imageio-ffmpeg` wheel 自带 Windows FFmpeg，可复制到项目默认位置。该可执行文件受其自身许可证约束，不随项目公共包分发。
 
 ```powershell
 @'
@@ -169,6 +186,8 @@ foreach ($taskPython in @($taskAsr, $taskMoss)) {
 }
 & $taskAsr -B -m unittest discover -s tests -v
 if ($LASTEXITCODE -ne 0) { throw 'Synthetic tests failed' }
+& $taskAsr -B release/export_public.py --check
+if ($LASTEXITCODE -ne 0) { throw 'Public export check failed' }
 ```
 
 相对路径均以项目根解析。需要外置缓存时，只修改未跟踪的 `profiles/local_settings.json` 中 `whisper_cache` 或 `ffmpeg`；不要把个人绝对路径写进公共版本文件。
@@ -274,3 +293,20 @@ if ($LASTEXITCODE -ne 0) { throw 'Smoke failed; inspect the error without relaxi
 先阅读 [工作流](AUDIO_WORKFLOW.md)，然后按 README 登记实际录音。内容整理需要能读取项目文件的 AI agent（当前推荐 Codex）或人工完整阅读全文、写笔记、维护 spec 并审查来源。脚本不会自动完成高质量内容写作；注册或 ASR 成功不等于课堂笔记/会议纪要已完成。
 
 第三方模型、MOSS 源码、FFmpeg 和依赖受各自许可证约束；Apache-2.0 只适用于本项目授权的代码与文档，不重新授权第三方组件。
+
+## 常见失败排查
+
+| 现象或报错 | 检查与处理 |
+|---|---|
+| `py` 找不到 Python、入口找不到 `envs/asr/Scripts/python.exe` | 完成第 1 步；可用实际 Python 3.12 路径创建环境。纯合成测试不要求安装 ASR 包。 |
+| PowerShell 拒绝运行 `.ps1` | 依照本机执行策略运行已审阅脚本；也可在项目根用 `& $taskAsr -B src/audio_workflow.py --help` 查看等价 Python CLI，不修改全局策略。 |
+| `FileNotFoundError` 指向 FFmpeg 或 `No readable audio stream` | 完成第 4 步，检查 `tools/ffmpeg.exe`、本地配置或 `AUDIONOTES_FFMPEG`；用该 FFmpeg 的 `-i` 检查输入。 |
+| CUDA unavailable、DLL 加载失败、CUDA out of memory | 核对第 1/4 步的驱动、CUDA Torch wheel 与对应环境；关闭其他 GPU 任务。不要替换成 CPU Torch，或修改固定块长掩盖问题。 |
+| 缺少 `download_manifest.json`、Whisper `refs/main` 或本地权重 | 完成第 3/3a 步；运行器离线加载，不会补下载。Qwen/MOSS 在 `models/<模型名>`，Whisper 使用配置的 cache 下 `snapshots/<revision>`。不要伪造 manifest。 |
+| `No module named moss_transcribe_diarize` | 在 `envs/moss` 完成第 2 步源码安装；Qwen/Whisper 使用 `envs/asr`。 |
+| `Stereo input`、日期或 collection 缺失 | 填实际事件日期、课程/项目名称；立体声检查后显式选 `-Channels separate`。 |
+| `Source structure requires localized repair` | 查看该 job 的 `delivery/quality.json`；只有非 EOS 异常适用工作流中的自动 repair 命令，再选择候选、重建来源。其他疑点不能靠重复全量推理解决。 |
+| 多个 completed runs 或 repair 的裸 `AssertionError` | 当前自动 repair 要求只有一个 full run 目录及一个 repair run 目录；检查 `run.json` 状态、计划与 chunk 哈希。保留原件，显式审查来源，不能删除旧证据绕过断言。 |
+| `Source hash changed`、`Preserve human-edited delivery` 或手改保护报错 | 停止覆盖并核对来源/手改版本，按工作流保留与合并；不能改 hash 冒充原件。 |
+
+安装及下载仍依赖上游源可用性；本次 maintenance 未重装依赖或重新下载权重，复用范围及未验证项目见 [发布检查](RELEASE_CHECK.md)。

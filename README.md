@@ -1,6 +1,6 @@
-# AudioNotes v0.1.0
+# AudioNotes v0.1.1（待发布）
 
-**公共软件版本：v0.1.0（首次公开发布）。内部 workflow/default policy：v1.1；阅读状态标识继续使用 `reading-v1`。这些版本号分别描述发布包与处理政策。**
+**当前代码准备发布 v0.1.1；已公开发布版本为 v0.1.0。内部 workflow/default policy：v1.1；阅读状态标识继续使用 `reading-v1`。这些版本号分别描述发布包与处理政策。**
 
 面向 Windows/CUDA 的本地录音处理与阅读发布工具。课堂使用 Qwen，会议使用 MOSS；机械工具负责发现、登记、识别衔接、保全和发布。内容整理需要能读取项目文件的 AI agent（当前推荐 Codex），或由人工完整阅读转写后完成。机械脚本本身不会自动生成高质量课堂笔记或会议纪要，也不会自行调用订阅模型。
 
@@ -8,7 +8,7 @@
 
 ## 开始
 
-仓库：[leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)。可直接克隆公共代码。
+仓库：[leiye314/AudioNotes](https://github.com/leiye314/AudioNotes)。下面取得最新 main；按 release tag 精确复现见 [SETUP](docs/SETUP.md)。
 
 ```powershell
 git clone https://github.com/leiye314/AudioNotes.git
@@ -19,9 +19,10 @@ Set-Location AudioNotes
 
 ```powershell
 python -B -m unittest discover -s tests -v
+python -B release/export_public.py --check
 ```
 
-把文件放到 `recordings/inbox`，给文件名加真实事件日期：
+先执行 `New-Item -ItemType Directory -Force recordings/inbox | Out-Null`，再把文件放进去，给文件名加真实事件日期。以下文件名和 job 是占位示例，需替换成实际值：
 
 ```powershell
 .\Run-ReadingAudioNotes.ps1 -Action scan
@@ -40,7 +41,7 @@ python -B -m unittest discover -s tests -v
 
 个人数据在 `recordings`、`outputs`、`work`、`阅读成品`；模型与工具在 `models`、`envs`、`tools`。这些目录均排除版本控制。迁移个人历史资料须另行处理绝对来源路径与哈希证据，不能批量替换既有 manifest。
 
-源码变化会产生新的运行指纹；已完成的 delivery 仍优先复用。支持范围是 Windows/CUDA；短音频 smoke 只验证运行链路，不承诺跨平台或全场质量。程序检查证明结构与保全，不代表音频听写、说话人或内容已获人工认可。
+源码变化会产生新的运行指纹；已完成的 delivery 仍优先复用。支持范围是 Windows/CUDA，不提供 CPU 推理 fallback；短音频 smoke 只验证运行链路，不承诺跨平台或全场质量。程序检查证明结构与保全，不代表音频听写、说话人或内容已获人工认可。CI 仅在 Windows / Python 3.12 运行上述合成测试与导出检查，不安装推理依赖或下载模型。
 
 本项目代码与文档按 [Apache-2.0](LICENSE) 授权。第三方 Qwen/MOSS/Whisper 模型及源码、FFmpeg 和 Python 依赖遵循各自许可证，不随本项目重新授权；权重、第三方源码、可执行文件与安装环境不包含在公共导出中。
 

@@ -23,20 +23,25 @@ def plan(job,engine):
         return plan
     fullplan=json.loads((ROOT/'work'/job/'full/plan.json').read_text(encoding='utf-8'))
     results=[]
-    for channel in sorted({d['channel'] for p,d in broken}):
+    for channel in sorted({d.get('channel','MONO') for p,d in broken}):
         results.append(channel_plan(job,engine,channel,fullplan,broken,work))
     result=results[0] if len(results)==1 else results
     write_json(work/'plan.json',result);return result
 
 def channel_plan(job,engine,channel,fullplan,broken,work):
-    source=next(r for r in fullplan['channel_rows'] if r['channel']==channel)
+    if 'channel_rows' in fullplan:
+        source=next(r for r in fullplan['channel_rows'] if r['channel']==channel)
+    else:
+        assert channel=='MONO' and fullplan.get('channel_policy','mono')=='mono', 'Expected native mono plan'
+        source={**fullplan,'channel':'MONO'}
     assert source['source_start_s']==0, 'Full channel source must start at zero'
     assert sha(Path(source['local_path']))==source['local_sha256']
     chunks=[];replacements=[]
     with wave.open(source['local_path'],'rb') as w:
+        assert w.getnchannels()==1, 'Repair source must be mono or an already separated L/R channel'
         rate=w.getframerate()
         for original,d in broken:
-            if d['channel']!=channel:continue
+            if d.get('channel','MONO')!=channel:continue
             assert sha(Path(d['input_path']))==d['input_sha256']
             start=d['source_start_s'];end=d['source_end_s'];bounds=[]
             while start<end-0.00001:

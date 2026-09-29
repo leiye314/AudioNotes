@@ -19,7 +19,7 @@ def main():
     for old in [r for row in plans for r in row['replacements']]:
         selected=[]
         for a,b in old['replacement_bounds']:
-            channel=json.loads(Path(old['original_path']).read_text(encoding='utf-8'))['channel']
+            channel=json.loads(Path(old['original_path']).read_text(encoding='utf-8')).get('channel','MONO')
             p,c=next((p,c) for p,c in chunks if c['channel']==channel and c['source_start_s']==a and c['source_end_s']==b)
             selected.append({'path':str(p),'sha256':sha(p)})
         mapping[old['original_chunk_id']]={**old,'replacement_files':selected}

@@ -1,6 +1,6 @@
 # AudioNotes 内部 workflow/default policy v1.1
 
-适用于公共软件 v0.1.0；这里的 v1.1 不是软件发布号。
+适用于待发布公共软件 v0.1.1；这里的 v1.1 不是软件发布号。
 
 这是公共版操作说明。场景配置来自既有本地 v1.1 政策；选型录音、人工复核和实验材料属于私有证据，不包含在公共包中。这里不宣称某模型具有通用准确率优势。
 
@@ -21,7 +21,19 @@ Whisper 每块重新以 `language=None, task='transcribe', beam_size=5, vad_filt
 
 `-Action asr -Job <job>` 先复用完整来源，无完整结果才调用对应运行器。改稿用 `-RewriteOnly`；即使缺少转写也不因此启动模型。局部备用用 `prepare_local_fallback.py --job <job> --start <秒> --end <秒> --channel L|R|MONO --engine qwen|moss|whisper --reason <原因>`，最多 120 秒；结果仅生成候选，不自动并入正文。然后按返回 plan 用对应环境调用 `run_repair.py --model <engine> --job <job> --plan <plan>`。非 EOS 修复另用 `run_repair.py --job <job> --model qwen|moss` 与 `select_repair.py --job <job> --engine qwen|moss`，保留原候选。
 
-自动 EOS 修复目前依赖立体声 `channel/channel_rows` 计划结构；原生 mono 的自动修复存在旧边界，未在此基线扩展。遇到这类失败应保留原件并单独修复计划器；显式 `--plan` 的局部候选不等于已经完成自动替换。正常 mono 识别与完整结果复用不受该边界影响。
+自动 EOS 修复在内部将原生单声道记为 `MONO`，立体声仍按 `L/R` 分开；只修非 EOS 块，保留原失败输出。它是显式调用的修复步骤，`-Action asr` 不会自动启动修复。以 Qwen 为例，在项目根执行（先替换 job；MOSS 改用 `envs/moss` 且两处引擎参数均改为 `moss`）：
+
+```powershell
+$taskJob = '<实际 job>'
+& .\envs\asr\Scripts\python.exe -B src/run_repair.py --job $taskJob --model qwen
+if ($LASTEXITCODE -ne 0) { throw 'Repair inference failed; originals preserved' }
+& .\envs\asr\Scripts\python.exe -B src/select_repair.py --job $taskJob --engine qwen
+if ($LASTEXITCODE -ne 0) { throw 'Repair selection failed' }
+& .\envs\asr\Scripts\python.exe -B src/postprocess_full.py --job $taskJob
+if ($LASTEXITCODE -ne 0) { throw 'Source rebuild failed' }
+```
+
+重建后检查 `delivery/quality.json` 的 `procedural_pass`，再进入阅读；选择候选只说明 EOS/时间结构通过，不等于听音正确。显式 `--plan` 的局部备用候选仍不自动替换。自动修复要求对应引擎只有一个 full run 和一个 repair run，多个历史 fingerprint 必须先审查选择，不删除原件绕过检查。
 
 ## 完整阅读与编辑
 
