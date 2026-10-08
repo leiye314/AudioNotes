@@ -23,8 +23,10 @@ def process(job,reading_source_only=True):
             if current.exists() and sha(current)!=expected:
                 raise RuntimeError(f'Preserve human-edited delivery: {current}; generate a new delivery version instead of overwriting it')
     plan=json.loads((ROOT/'work'/job/'full/plan.json').read_text(encoding='utf-8'))
+    stereo=plan.get('channel_policy')=='separate_L_R_no_downmix'
     selection_path=base/'repair_selection.json'
     selection=json.loads(selection_path.read_text(encoding='utf-8')) if selection_path.exists() else {'replacements':{},'repair_runs':[]}
+    repair_chunk_seconds=max((b-a for old in selection['replacements'].values() for a,b in old['replacement_bounds']),default=0)
     repair_configs=[];repair_seconds=0
     for meta in selection['repair_runs']:
         rp=Path(meta['path']);assert sha(rp)==meta['sha256']
@@ -78,10 +80,10 @@ def process(job,reading_source_only=True):
     header=[f'# {Path(row["source_path"]).name}', '',f'源录音：`{row["source_path"]}`  ',f'SHA256：`{row["source_sha256"]}`  ',f'引擎：{run["config"]["model"]}；revision `{run["config"]["revision"]}`。源时间从本文件00:00起算。', '', '**尚未人工复听；原始模型文本不等于已核实原话。** '+('时间为约30秒输入块范围，非字词对齐。' if engine=='qwen' else '时间为模型预测；Speaker仅在对应120秒块内有效，不能跨块合并为同一人。')]
     if row['partial_recording']:header+=['','**缺录声明：'+(row.get('missing_recording_note') or '文件名标注“部分”；仅记录现存音频，缺失范围未知。')+' 不补造未录内容。**']
     if row['part']:header+=['',f'**分段来源：{row["part"]}独立文件。没有另一部分在原现场的精确偏移，不拼接时间轴。**']
-    if plan.get('channel_policy'):
+    if stereo:
         header+=['','**双声道独立识别：L、R各覆盖完整录音，不混音。两套文本可重复，同一源时间的L/R不是先后两次发言，也不按多数票合成真值。任务候选可能重复提及。**']
     if selection['replacements']:
-        header+=['',f'**异常局部重试：{len(selection["replacements"])}个原块曾未正常结束，原始失败输出保留。正式候选改用30秒短块重试，Speaker范围也相应限于各短块；这是生成完整性修复，不是人工听音纠错。**']
+        header+=['',f'**异常局部重试：{len(selection["replacements"])}个原块曾未正常结束，原始失败输出保留。正式候选改用{repair_chunk_seconds:g}秒以内短块重试，Speaker范围也相应限于各短块；这是生成完整性修复，不是人工听音纠错。**']
     raw=header+['','## 原始转写（未经改字）'];edited=header+['','## 初校说明','', '本稿完成来源、时间和疑点标注，尚无听音依据支持关键改字，因此保留原始用词。段落格式调整不算纠错；可疑英文、数字、否定、板书指代和人名不擅自补齐。','', '姓名须依据对应来源范围的人工确认；不据此绑定未知声音身份。' if engine=='moss' else '“这个式子／这里”等指代缺少课件或板书依据，不能仅由音频候选恢复公式。','', '## 校订逐字稿（初校，待人工听音）']
     srt=[]
     for i,r in enumerate(records):
@@ -92,7 +94,7 @@ def process(job,reading_source_only=True):
         if r['review_flags']:edited.extend(['','> 自动疑点：'+', '.join(r['review_flags'])+'。仅为复核线索，尚未确认错误。'])
         srt.extend([str(i+1),f'{stamp(r["source_start_s"],True)} --> {stamp(r["source_end_s"],True)}',r['text'],''])
     (out/'raw_transcript.md').write_text('\n'.join(raw),encoding='utf-8');(out/'corrected_transcript.md').write_text('\n'.join(edited),encoding='utf-8');(out/'raw_timestamps.srt').write_text('\n'.join(srt),encoding='utf-8')
-    if plan.get('channel_policy'):
+    if stereo:
         for channel in ['L','R','combined']:
             rs=[r for r in records if channel=='combined' or r['channel']==channel]
             rs.sort(key=lambda r:(r['source_start_s'],r['channel']))
@@ -107,7 +109,7 @@ def process(job,reading_source_only=True):
         with (out/'CHANGES.md').open('a',encoding='utf-8') as f:
             f.write('\n\n## 模型候选局部替换（非人工改字）\n\n')
             for old in selection['replacements'].values():
-                bounds=old['replacement_bounds'];f.write(f'- 源时间{stamp(bounds[0][0])}–{stamp(bounds[-1][1])}：原候选未到EOS，触发输出上限，改用{len(bounds)}个30秒以内短块的原始模型候选。原失败记录 `{old["original_path"]}`，SHA256 `{old["original_sha256"]}` 保留。完整替换文件/hash见corrections.json，尚未听音核实。\n')
+                bounds=old['replacement_bounds'];f.write(f'- 源时间{stamp(bounds[0][0])}–{stamp(bounds[-1][1])}：原候选未到EOS，触发输出上限，改用{len(bounds)}个{max(b-a for a,b in bounds):g}秒以内短块的原始模型候选。原失败记录 `{old["original_path"]}`，SHA256 `{old["original_sha256"]}` 保留。完整替换文件/hash见corrections.json，尚未听音核实。\n')
     flagged=[x for x in raw_provenance if x['flags']]
     q={'job_id':job,'procedural_pass':not issues,'human_full_text_verified':False,'audio_coverage_s':cursor,'source_duration_s':plan['duration_s'],'chunks':len(chunks),'reused_chunks':sum(bool(x.get('reused_from')) for x in chunks),'segments':len(records),'flagged_chunks':len(flagged),'structural_issues':issues,'flag_counts':dict(collections.Counter(f for c in flagged for f in c['flags'])),'new_inference_seconds':run['new_inference_seconds'],'new_audio_rtf':run['new_audio_rtf'],'gpu':run['gpu'],'peak_device_mib':run['nvidia_device_peak_used_mib'],'raw_text_equals_initial_corrected_text':True}
     q.update(replaced_truncated_chunks=len(selection['replacements']),repair_inference_seconds=repair_seconds,rtf_note='All original attempts plus selected repairs divided by original unique new audio duration; stereo channels counted separately.')
@@ -116,7 +118,7 @@ def process(job,reading_source_only=True):
     for x in flagged:md.append(f'| {stamp(x["source_start_s"])}–{stamp(x["source_end_s"])} | {x["chunk_id"]} | {", ".join(x["flags"])} | {x["rms_dbfs"]} |')
     if not flagged:md+=['未触发当前自动规则；不表示没有错误。']
     if issues:md+=['','结构问题：',json.dumps(issues,ensure_ascii=False)]
-    if selection['replacements']:md+=['','## 已保留原件的局部修复','',f'{len(selection["replacements"])}个原块达到输出上限，已用30秒短块重试并检查EOS和时间覆盖。原始失败JSON不删除；修复映射见provenance.json中的repair_selection。耗时/RTF包含失败尝试和{repair_seconds:.2f}秒重试，分母不重复增加同一段音频。未作人工听音裁决。']
+    if selection['replacements']:md+=['','## 已保留原件的局部修复','',f'{len(selection["replacements"])}个原块达到输出上限，已用{repair_chunk_seconds:g}秒以内短块重试并检查EOS和时间覆盖。原始失败JSON不删除；修复映射见provenance.json中的repair_selection。耗时/RTF包含失败尝试和{repair_seconds:.2f}秒重试，分母不重复增加同一段音频。未作人工听音裁决。']
     (out/'quality.md').write_text('\n'.join(md),encoding='utf-8')
     make_review(out,row,records)
     print(json.dumps(q,ensure_ascii=False))
